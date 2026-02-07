@@ -18,7 +18,7 @@
     "fix": "npm run lint:fix && npm run format",
     "check": "npm run format:check && npm run lint && npm run build",
     "dev": "npx @langchain/langgraph-cli dev",
-    "test:validate": "tsx tests/validate-integration.ts",
+    "test:validate": "tsx tests/test-validate-integration.ts",
     "test:scope": "tsx tests/test-scope-classifier.ts",
     "test:parser": "tsx tests/test-query-parser.ts",
     "test:pubmed": "tsx tests/test-pubmed-enricher.ts",

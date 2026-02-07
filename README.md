@@ -12,76 +12,38 @@ This system processes medical questions through a multi-stage pipeline:
 4. Enriches results with PubMed metadata and citation counts
 5. Generates natural language responses with inline citations
 
-## Architecture
-
-The project follows clean architecture principles with clear separation of concerns:
-
-```
-src/
-├── clients/              # External API clients
-│   ├── openai.ts        # OpenAI GPT-4o and GPT-4o-mini client
-│   └── pubmed.ts        # PubMed E-utilities API client
-│
-├── config/              # Configuration
-│   └── scopeKeywords.ts # Medical/non-medical keyword lists
-│
-├── nodes/               # LangGraph orchestration nodes
-│   ├── scopeClassifier.ts      # Filters non-medical queries
-│   ├── queryParser.ts          # Optimizes queries for search
-│   ├── vectorSearch.ts         # Retrieves from Pinecone
-│   ├── pubmedEnricher.ts       # Enriches with PubMed data
-│   ├── respond.ts              # Generates LLM response
-│   ├── outOfScopeResponse.ts  # Handles non-medical queries
-│   └── noResultsResponse.ts   # Handles empty search results
-│
-├── services/            # Business logic layer
-│   ├── pubmedEnrichment.ts    # PubMed enrichment orchestration
-│   └── responseGeneration.ts  # LLM response generation
-│
-├── types/               # TypeScript type definitions
-│   ├── pubmed.ts       # PubMed API types
-│   └── response.ts     # Response generation types
-│
-├── utils/               # Pure utility functions
-│   ├── formatters.ts          # Citation and response formatting
-│   ├── getMessageText.ts      # Message extraction utilities
-│   ├── llmClassifier.ts       # LLM-based classification
-│   ├── queryOptimizer.ts      # Query optimization via LLM
-│   └── ranking.ts             # Citation-based re-ranking
-│
-└── retrieval_graph/     # LangGraph state machine
-    ├── graph.ts        # Main graph definition
-    └── state.ts        # State schema
-```
-
 ## Data Flow
 
 The system processes queries through the following pipeline:
 
-```
-User Query
-    ↓
-┌─────────────────────┐
-│ Scope Classifier    │  Hybrid: Keywords (fast) + LLM (accurate)
-└─────────────────────┘
-    ↓ (if medical)
-┌─────────────────────┐
-│ Query Parser        │  Optimizes query for vector search
-└─────────────────────┘
-    ↓
-┌─────────────────────┐
-│ Vector Search       │  Retrieves top papers from Pinecone
-└─────────────────────┘
-    ↓ (if results found)
-┌─────────────────────┐
-│ PubMed Enricher     │  Adds metadata, abstracts, citations
-└─────────────────────┘
-    ↓
-┌─────────────────────┐
-│ Response Generator  │  LLM synthesizes answer with citations
-└─────────────────────┘
-    ↓
-Natural Language Response
+```mermaid
+graph TD
+    A[User Query] --> B[Scope Classifier]
+    B -->|if medical| C[Query Parser]
+    B -->|if non-medical| Z[Reject Query]
+    C --> D[Vector Search]
+    D -->|if results found| E[PubMed Enricher]
+    D -->|no results| Y[No Results Response]
+    E --> F[Response Generator]
+    F --> G[Natural Language Response]
+    
+    style B fill:#e1f5ff,stroke:#0288d1
+    style C fill:#fff9c4,stroke:#f57f17
+    style D fill:#f3e5f5,stroke:#7b1fa2
+    style E fill:#e8f5e9,stroke:#388e3c
+    style F fill:#ffe0b2,stroke:#e64a19
+    
+    note1[Hybrid: Keywords fast + LLM accurate]
+    note2[Optimizes query for vector search]
+    note3[Retrieves top papers from Pinecone]
+    note4[Adds metadata, abstracts, citations]
+    note5[LLM synthesizes answer with citations]
+    
+    B -.-> note1
+    C -.-> note2
+    D -.-> note3
+    E -.-> note4
+    F -.-> note5
 ```
 
 ## Key Components
@@ -164,7 +126,7 @@ This information is for educational purposes only...
 
 ### Prerequisites
 
-- Node.js 18+ and yarn
+- Node.js 18+ and npm
 - Google Cloud account with Vertex AI enabled
 - Pinecone API access (credentials provided)
 - OpenAI API key
@@ -173,7 +135,7 @@ This information is for educational purposes only...
 
 1. Install dependencies:
 ```bash
-yarn install
+npm install
 ```
 
 2. Create `.env` file with required credentials:
@@ -193,14 +155,14 @@ GOOGLE_VERTEX_AI_LOCATION="us-central1"
 
 3. Build the project:
 ```bash
-yarn build
+npm run build
 ```
 
 ### Running the System
 
 **LangGraph Studio (Interactive UI):**
 ```bash
-yarn dev
+npm run dev
 ```
 Access at: http://localhost:2024
 
@@ -217,14 +179,6 @@ npm run test:pubmed      # PubMed enricher
 npm run test:response    # Response generation
 ```
 
-## Testing
-
-Comprehensive test coverage across all components:
-
-```bash
-npm run test:all
-```
-
 **Test Coverage:**
 - Integration validation: 4/4 tests
 - Scope classifier: 9/9 tests
@@ -232,67 +186,3 @@ npm run test:all
 - PubMed enricher: 7/7 tests
 - Response generation: 7/7 tests
 - **Total: 38/38 tests passing**
-
-## Performance
-
-**End-to-End Latency:** 5-8 seconds per query
-- Scope classification: ~300ms
-- Query optimization: ~500ms
-- Vector search: ~1s
-- PubMed enrichment: ~2-3s
-- Response generation: ~1-2s
-
-**Cost per Query:** ~$0.005 (£0.004)
-- Scope classifier (GPT-4o-mini): $0.000015
-- Query optimizer (GPT-4o-mini): $0.000015
-- Response generation (GPT-4o): ~$0.005
-- PubMed API: Free
-
-## Code Quality
-
-### Linting and Formatting
-
-```bash
-yarn lint          # Check for linting errors
-yarn lint:fix      # Auto-fix linting errors
-yarn format        # Format with Prettier
-yarn format:check  # Check formatting
-yarn fix           # Fix all linting and formatting
-yarn check         # Run all checks + build
-```
-
-### Design Principles
-
-- **Clean Architecture:** Clear separation of clients, services, nodes, and utilities
-- **Type Safety:** Comprehensive TypeScript types throughout
-- **Error Handling:** Graceful fallbacks at every layer
-- **Testability:** Pure functions and dependency injection
-- **Maintainability:** Single responsibility principle
-
-## Task Implementation Summary
-
-All five tasks completed successfully:
-
-1. **Validate Integrations** - Verified Pinecone and Google Vertex AI connectivity
-2. **Scope Classifier** - Hybrid keyword + LLM classification system
-3. **Query Parser** - LLM-based query optimization for vector search
-4. **PubMed Integration** - Metadata enrichment and citation-based re-ranking
-5. **LLM Response Generation** - Natural language responses with citations
-
-## Development Log
-
-For detailed development decisions, challenges, and implementation notes, see `DEV_LOG.md`.
-
-## Technology Stack
-
-- **LangGraph:** State machine orchestration
-- **LangChain:** LLM framework and integrations
-- **Google Vertex AI:** Text embeddings (768 dimensions)
-- **Pinecone:** Vector database (2M+ medical articles)
-- **PubMed E-utilities:** Medical literature metadata
-- **OpenAI:** GPT-4o (responses) and GPT-4o-mini (classification/optimization)
-- **TypeScript:** Type-safe implementation
-
-## License
-
-MIT
