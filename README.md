@@ -44,18 +44,6 @@ flowchart TB
     Step7 --> End3
     
     End3([Natural Language Response])
-    
-    style Step1 fill:#e1f5ff,stroke:#0288d1,stroke-width:2px
-    style Step2 fill:#fff9c4,stroke:#f57f17,stroke-width:2px
-    style Step3 fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    style Step4 fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-    style Step5 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
-    style Step6 fill:#a5d6a7,stroke:#1b5e20,stroke-width:2px
-    style Step7 fill:#ffe0b2,stroke:#e64a19,stroke-width:2px
-    style Start fill:#f5f5f5,stroke:#666,stroke-width:2px
-    style End3 fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px
-    style End1 fill:#ffcdd2,stroke:#c62828,stroke-width:2px
-    style End2 fill:#ffecb3,stroke:#f57c00,stroke-width:2px
 ```
 
 ## Key Components
