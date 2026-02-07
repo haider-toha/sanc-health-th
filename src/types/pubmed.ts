@@ -131,22 +131,12 @@ export interface PubMedEnrichmentConfig {
     maxArticlesToEnrich: number // How many articles to fetch metadata for
     retryAttempts: number // Number of retry attempts for failed API calls
     timeoutMs: number // API request timeout
-    rankingWeights: {
-        vectorSimilarity: number // Weight for vector similarity (0-1)
-        citationCount: number // Weight for citation count (0-1)
-    }
 }
 
 /**
  * Result of PubMed enrichment operation
  */
 export interface EnrichmentResult {
-    success: boolean
     enrichedCount: number // Number of successfully enriched documents
-    failedCount: number // Number of failed enrichments
     enrichedDocs: EnrichedDocument[]
-    errors?: Array<{
-        pmid: string
-        error: string
-    }>
 }

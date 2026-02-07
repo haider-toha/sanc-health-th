@@ -1,86 +1,55 @@
 /**
  * PubMed Enricher Node
  *
- * Enriches retrieved documents with PubMed metadata (citations, abstracts,
- * journal info) and re-ranks them using a weighted combination of vector
- * similarity and citation count.
+ * Three-phase strategy:
+ * 1. Fetch citation counts for candidates (fast, single API call)
+ * 2. Re-rank by vector similarity + citations, select top K
+ * 3. Fetch full metadata for top K only
  */
 
-import { Document } from "@langchain/core/documents"
 import { StateAnnotation } from "../retrieval_graph/state.js"
-import { enrichDocumentsWithPubMed } from "../services/pubmedEnrichment.js"
+import { enrichWithCitationsOnly, enrichWithFullMetadata } from "../services/pubmedEnrichment.js"
 import { getTopDocuments } from "../utils/ranking.js"
-import type { EnrichedDocument } from "../types/pubmed.js"
+import { RERANK_CANDIDATES, TOP_K, RANKING_WEIGHTS } from "../config/pipeline.js"
 
-const TOP_K = 5
-
-const RANKING_WEIGHTS = {
-    vectorSimilarity: 0.7,
-    citationCount: 0.3
-}
-
-/**
- * Wraps raw Pinecone documents as EnrichedDocuments so the respond node
- * always has something to work with, even when PubMed enrichment fails.
- */
-function wrapAsEnrichedDocs(docs: Document[]): EnrichedDocument[] {
-    return docs.slice(0, TOP_K).map((doc) => ({
-        content: doc.pageContent,
-        metadata: doc.metadata,
-        qualityScore: 1.0,
-        vectorSimilarityScore: 1.0,
-        pubmedData: {
-            title: (doc.metadata.title as string) || "Unknown",
-            authors: doc.metadata.author ? [doc.metadata.author as string] : [],
-            journal: (doc.metadata.article_citation as string) || "Unknown",
-            publicationDate: (doc.metadata.last_updated as string) || "Unknown",
-            articleTypes: [],
-            citationCount: 0,
-            relatedArticleCount: 0
-        }
-    }))
-}
-
-/**
- * PubMed Enricher Node
- *
- * Enriches documents with PubMed metadata and re-ranks by quality.
- * Falls back to original documents if enrichment fails.
- */
 export async function pubmedEnricher(state: typeof StateAnnotation.State): Promise<typeof StateAnnotation.Update> {
-    console.log(`[PubMed Enricher] Enriching ${state.retrievedDocs.length} documents`)
+    const docs = state.retrievedDocs
 
-    if (state.retrievedDocs.length === 0) {
+    if (docs.length === 0) {
+        console.log(`[PubMed Enricher] No documents to enrich`)
         return { messages: [], enrichedDocs: [] }
     }
 
-    try {
-        const enrichmentResult = await enrichDocumentsWithPubMed(state.retrievedDocs, {
-            maxArticlesToEnrich: TOP_K,
-            retryAttempts: 1,
-            timeoutMs: 10000,
-            rankingWeights: RANKING_WEIGHTS
-        })
+    console.log(`[PubMed Enricher] Processing ${docs.length} documents`)
 
-        if (!enrichmentResult.success || enrichmentResult.enrichedDocs.length === 0) {
-            console.warn(`[PubMed Enricher] Enrichment failed, falling back to original documents`)
-            return { messages: [], enrichedDocs: wrapAsEnrichedDocs(state.retrievedDocs) }
-        }
+    // Phase 1: Fetch citation counts
+    console.log(`[PubMed Enricher] Phase 1: Fetching citation counts for ${Math.min(docs.length, RERANK_CANDIDATES)} candidates`)
+    const citationResult = await enrichWithCitationsOnly(docs, {
+        maxArticlesToEnrich: RERANK_CANDIDATES,
+        retryAttempts: 1,
+        timeoutMs: 10000
+    })
 
-        console.log(`[PubMed Enricher] Enriched ${enrichmentResult.enrichedCount}/${enrichmentResult.enrichedDocs.length} documents`)
+    // Phase 2: Re-rank and select top K
+    console.log(`[PubMed Enricher] Phase 2: Re-ranking ${citationResult.enrichedDocs.length} documents`)
+    const topCandidates = getTopDocuments(citationResult.enrichedDocs, TOP_K, RANKING_WEIGHTS)
 
-        const topDocs = getTopDocuments(enrichmentResult.enrichedDocs, TOP_K, RANKING_WEIGHTS)
+    console.log(`[PubMed Enricher] Top ${TOP_K} after re-ranking:`)
+    topCandidates.forEach((doc, idx) => {
+        const title = doc.pubmedData?.title?.substring(0, 50) ?? "Unknown"
+        const citations = doc.pubmedData?.citationCount ?? 0
+        console.log(`  ${idx + 1}. "${title}..." (score: ${doc.qualityScore.toFixed(3)}, citations: ${citations})`)
+    })
 
-        topDocs.forEach((doc, idx) => {
-            const title = doc.pubmedData?.title?.substring(0, 60) ?? "Unknown"
-            console.log(
-                `[PubMed Enricher] Rank ${idx + 1}: "${title}..." (score: ${doc.qualityScore.toFixed(3)}, citations: ${doc.pubmedData?.citationCount ?? 0})`
-            )
-        })
+    // Phase 3: Fetch full metadata for top K
+    console.log(`[PubMed Enricher] Phase 3: Fetching full metadata for top ${TOP_K}`)
+    const fullResult = await enrichWithFullMetadata(topCandidates, {
+        maxArticlesToEnrich: TOP_K,
+        retryAttempts: 1,
+        timeoutMs: 10000
+    })
 
-        return { messages: [], enrichedDocs: topDocs }
-    } catch (error) {
-        console.error(`[PubMed Enricher] Error during enrichment, falling back to original documents:`, error)
-        return { messages: [], enrichedDocs: wrapAsEnrichedDocs(state.retrievedDocs) }
-    }
+    console.log(`[PubMed Enricher] Complete: ${fullResult.enrichedCount}/${TOP_K} fully enriched`)
+
+    return { messages: [], enrichedDocs: fullResult.enrichedDocs }
 }

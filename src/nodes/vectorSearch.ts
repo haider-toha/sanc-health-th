@@ -2,7 +2,7 @@
  * Vector Search Node
  *
  * Queries the Pinecone vector store using Google Vertex AI embeddings
- * to retrieve relevant medical documents for the user's query.
+ * to retrieve candidate documents for citation-based re-ranking.
  */
 
 import { StateAnnotation } from "../retrieval_graph/state.js"
@@ -10,6 +10,7 @@ import { VertexAIEmbeddings } from "@langchain/google-vertexai"
 import { PineconeStore } from "@langchain/pinecone"
 import { Pinecone } from "@pinecone-database/pinecone"
 import { getMessageText } from "../utils/getMessageText.js"
+import { RERANK_CANDIDATES } from "../config/pipeline.js"
 
 // Module-level clients - initialized once and reused across invocations
 const embeddingModel = new VertexAIEmbeddings({ model: "text-embedding-005" })
@@ -27,10 +28,10 @@ export async function vectorSearch(state: typeof StateAnnotation.State): Promise
 
     const pineconeIndex = pinecone.Index(indexName)
     const vectorStore = await PineconeStore.fromExistingIndex(embeddingModel, { pineconeIndex })
-    const retriever = vectorStore.asRetriever({ k: 10 })
+    const retriever = vectorStore.asRetriever({ k: RERANK_CANDIDATES })
     const results = await retriever.invoke(query)
 
-    console.log(`[Vector Search] Retrieved ${results.length} documents`)
+    console.log(`[Vector Search] Retrieved ${results.length} documents for re-ranking`)
 
     return { retrievedDocs: results }
 }

@@ -30,31 +30,23 @@ Answer:`
 
 export interface ClassificationResult {
     isMedical: boolean
-    confidence: "high" | "medium" | "low"
+    confidence: "high" | "medium"
     method: "llm"
 }
 
 /**
  * Classify a query as medical or non-medical using GPT-4o-mini.
- *
- * On error, defaults to allowing the query through (better UX than blocking).
  */
 export async function classifyWithLLM(query: string): Promise<ClassificationResult> {
-    try {
-        const llm = getClassificationClient()
-        const prompt = CLASSIFICATION_PROMPT.replace("{query}", query)
-        const response = await llm.invoke(prompt)
-        const answer = response.content.toString().toLowerCase().trim()
+    const llm = getClassificationClient()
+    const prompt = CLASSIFICATION_PROMPT.replace("{query}", query)
+    const response = await llm.invoke(prompt)
+    const answer = response.content.toString().toLowerCase().trim()
 
-        const isMedical = answer.includes("yes")
-        const confidence: "high" | "medium" | "low" = answer.match(/^(yes|no)$/) ? "high" : "medium"
+    const isMedical = answer.includes("yes")
+    const confidence: "high" | "medium" = answer.match(/^(yes|no)$/) ? "high" : "medium"
 
-        console.log(`[Scope Classifier] LLM result: ${isMedical ? "MEDICAL" : "NOT MEDICAL"} (confidence: ${confidence})`)
+    console.log(`[Scope Classifier] LLM result: ${isMedical ? "MEDICAL" : "NOT MEDICAL"} (confidence: ${confidence})`)
 
-        return { isMedical, confidence, method: "llm" }
-    } catch (error) {
-        console.error("[Scope Classifier] LLM classification error, defaulting to MEDICAL:", error)
-
-        return { isMedical: true, confidence: "low", method: "llm" }
-    }
+    return { isMedical, confidence, method: "llm" }
 }

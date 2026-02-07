@@ -72,7 +72,7 @@ async function validateIntegration() {
         console.log("[PASS] Vector store created")
 
         const retriever = vectorStore.asRetriever({ k: 5 })
-        console.log("[PASS] Retriever configured (k=5)")
+        console.log("[PASS] Retriever configured (k=5 for testing)")
 
         console.log(`\nSearching for: "${testQuery}"`)
         const results = await retriever.invoke(testQuery)

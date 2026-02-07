@@ -7,11 +7,11 @@
 
 import { AIMessage } from "@langchain/core/messages"
 import { StateAnnotation } from "../retrieval_graph/state.js"
-import { generateMedicalResponse, formatCompleteResponse, generateFallbackResponse } from "../services/responseGeneration.js"
+import { generateMedicalResponse, formatCompleteResponse } from "../services/responseGeneration.js"
 
 export async function respond(state: typeof StateAnnotation.State): Promise<typeof StateAnnotation.Update> {
-    const userQuery = state.messages[state.messages.length - 1]?.content?.toString() || ""
-    const enrichedDocs = state.enrichedDocs || []
+    const userQuery = state.messages[state.messages.length - 1].content.toString()
+    const enrichedDocs = state.enrichedDocs
 
     console.log(`[Respond] Generating response for ${enrichedDocs.length} enriched documents`)
 
@@ -21,15 +21,12 @@ export async function respond(state: typeof StateAnnotation.State): Promise<type
         maxDocuments: 5
     })
 
-    let responseText: string
-
-    if (result.success && result.response) {
-        responseText = formatCompleteResponse(result.response)
-        console.log(`[Respond] Successfully generated LLM response`)
-    } else {
-        console.error(`[Respond] LLM response failed: ${result.error}`)
-        responseText = generateFallbackResponse(enrichedDocs)
+    if (!result.success || !result.response) {
+        throw new Error(`[Respond] LLM response generation failed: ${result.error}`)
     }
+
+    const responseText = formatCompleteResponse(result.response)
+    console.log(`[Respond] Successfully generated LLM response`)
 
     return {
         messages: [new AIMessage(responseText)]

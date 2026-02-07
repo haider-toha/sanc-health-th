@@ -3,14 +3,14 @@
  *
  * Tests the complete enrichment pipeline:
  * - PubMed client API calls
- * - Document enrichment service
+ * - Two-phase enrichment (citations then full metadata)
  * - Citation-based re-ranking
  */
 
 import "dotenv/config"
 import { Document } from "@langchain/core/documents"
 import { getPubMedClient } from "../src/clients/pubmed.js"
-import { enrichDocumentsWithPubMed } from "../src/services/pubmedEnrichment.js"
+import { enrichWithCitationsOnly, enrichWithFullMetadata } from "../src/services/pubmedEnrichment.js"
 import { rerankDocuments, calculateQualityScore } from "../src/utils/ranking.js"
 
 /**
@@ -161,70 +161,85 @@ async function testFetchAbstracts(): Promise<void> {
 }
 
 /**
- * Test 4: Enrichment Service - Basic Enrichment
+ * Test 4: Two-Phase Enrichment
+ *
+ * Validates the complete two-phase pipeline:
+ * Phase 1 - enrichWithCitationsOnly: fetches citation counts for candidates
+ * Phase 2 - enrichWithFullMetadata: fetches abstracts + summaries for top results
  */
-async function testBasicEnrichment(): Promise<void> {
-    const docs = SAMPLE_DOCS.slice(0, 2) // Use first 2 docs with valid PMIDs
+async function testTwoPhaseEnrichment(): Promise<void> {
+    const docs = SAMPLE_DOCS.slice(0, 2)
 
-    const result = await enrichDocumentsWithPubMed(docs, {
+    // Phase 1: Citation counts only
+    const citationResult = await enrichWithCitationsOnly(docs, {
         maxArticlesToEnrich: 2,
         retryAttempts: 1,
         timeoutMs: 10000
     })
 
-    if (!result.success) {
-        throw new Error("Enrichment failed")
+    if (citationResult.enrichedDocs.length !== 2) {
+        throw new Error(`Phase 1: Expected 2 documents, got ${citationResult.enrichedDocs.length}`)
     }
 
-    if (result.enrichedCount === 0) {
-        throw new Error("No documents enriched")
+    // Verify phase 1 produces documents with citation counts but no abstracts
+    const phase1Doc = citationResult.enrichedDocs[0]
+    if (!phase1Doc.pubmedData) {
+        throw new Error("Phase 1: Missing pubmedData")
+    }
+    if (phase1Doc.pubmedData.abstract) {
+        throw new Error("Phase 1: Should NOT have abstracts yet")
     }
 
-    // Verify enriched data structure
-    const enrichedDoc = result.enrichedDocs[0]
-    if (!enrichedDoc.pubmedData) {
-        throw new Error("Missing PubMed data in enriched document")
+    console.log(`Phase 1: ${citationResult.enrichedCount} docs with citation data`)
+    citationResult.enrichedDocs.forEach((doc, i) => {
+        console.log(`  Doc ${i}: citations=${doc.pubmedData?.citationCount ?? 0}`)
+    })
+
+    // Phase 2: Full metadata for top results
+    const fullResult = await enrichWithFullMetadata(citationResult.enrichedDocs, {
+        maxArticlesToEnrich: 2,
+        retryAttempts: 1,
+        timeoutMs: 10000
+    })
+
+    if (fullResult.enrichedDocs.length !== 2) {
+        throw new Error(`Phase 2: Expected 2 documents, got ${fullResult.enrichedDocs.length}`)
     }
 
-    if (!enrichedDoc.pubmedData.title || !enrichedDoc.pubmedData.journal) {
-        throw new Error("Enriched document missing required fields")
+    // Verify phase 2 adds abstracts and full metadata
+    const phase2Doc = fullResult.enrichedDocs[0]
+    if (!phase2Doc.pubmedData?.title || !phase2Doc.pubmedData?.journal) {
+        throw new Error("Phase 2: Missing required metadata fields")
     }
 
-    console.log(`Enriched ${result.enrichedCount}/${result.enrichedDocs.length} documents`)
-    console.log(`Sample enriched doc:`)
-    console.log(`  Title: ${enrichedDoc.pubmedData.title.substring(0, 60)}...`)
-    console.log(`  Journal: ${enrichedDoc.pubmedData.journal}`)
-    console.log(`  Citations: ${enrichedDoc.pubmedData.citationCount}`)
+    console.log(`Phase 2: ${fullResult.enrichedCount} docs with full metadata`)
+    fullResult.enrichedDocs.forEach((doc, i) => {
+        const hasAbstract = !!doc.pubmedData?.abstract
+        console.log(`  Doc ${i}: title="${doc.pubmedData?.title?.substring(0, 40)}...", abstract=${hasAbstract}`)
+    })
 }
 
 /**
- * Test 5: Enrichment Service - Handling Missing PMIDs
+ * Test 5: Handling Missing PMIDs
  */
 async function testMissingPMIDHandling(): Promise<void> {
-    const docs = [SAMPLE_DOCS[2]] // Document with PMID = "0"
+    const docs = [SAMPLE_DOCS[2]] // PMID = "0"
 
-    const result = await enrichDocumentsWithPubMed(docs, {
+    const result = await enrichWithCitationsOnly(docs, {
         maxArticlesToEnrich: 1,
         retryAttempts: 1,
         timeoutMs: 10000
     })
 
-    // Should still complete successfully (graceful degradation)
-    if (!result.success) {
-        throw new Error("Enrichment should succeed with graceful degradation")
-    }
-
-    // Document should still be present in results
     if (result.enrichedDocs.length !== 1) {
         throw new Error(`Expected 1 document, got ${result.enrichedDocs.length}`)
     }
 
-    console.log(`Gracefully handled missing PMID`)
-    console.log(`Enriched: ${result.enrichedCount}, Failed: ${result.failedCount}`)
+    console.log(`Handled missing PMID: ${result.enrichedCount} enriched out of 1`)
 }
 
 /**
- * Test 6: Ranking Utility - Calculate Quality Score
+ * Test 6: Calculate Quality Score
  */
 async function testCalculateQualityScore(): Promise<void> {
     const vectorSimilarity = 0.85
@@ -253,7 +268,7 @@ async function testCalculateQualityScore(): Promise<void> {
 }
 
 /**
- * Test 7: Ranking Utility - Re-rank Documents
+ * Test 7: Re-rank Documents
  */
 async function testRerankDocuments(): Promise<void> {
     // Create mock enriched documents with different citation counts
@@ -333,10 +348,10 @@ async function runAllTests(): Promise<void> {
     await runTest("PubMed Client - Fetch Document Summaries", testFetchDocumentSummaries)
     await runTest("PubMed Client - Fetch Citation Counts", testFetchCitationCounts)
     await runTest("PubMed Client - Fetch Abstracts", testFetchAbstracts)
-    await runTest("Enrichment Service - Basic Enrichment", testBasicEnrichment)
-    await runTest("Enrichment Service - Handling Missing PMIDs", testMissingPMIDHandling)
-    await runTest("Ranking Utility - Calculate Quality Score", testCalculateQualityScore)
-    await runTest("Ranking Utility - Re-rank Documents", testRerankDocuments)
+    await runTest("Two-Phase Enrichment", testTwoPhaseEnrichment)
+    await runTest("Handling Missing PMIDs", testMissingPMIDHandling)
+    await runTest("Calculate Quality Score", testCalculateQualityScore)
+    await runTest("Re-rank Documents", testRerankDocuments)
 
     // Print summary
     console.log("\n" + "=".repeat(70))

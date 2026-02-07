@@ -5,7 +5,7 @@
  */
 
 import "dotenv/config"
-import { generateMedicalResponse, formatCompleteResponse, generateFallbackResponse } from "../src/services/responseGeneration.js"
+import { generateMedicalResponse, formatCompleteResponse } from "../src/services/responseGeneration.js"
 import { formatCitations, buildDocumentContext, calculateResponseMetadata } from "../src/utils/formatters.js"
 import type { EnrichedDocument } from "../src/types/pubmed.js"
 
@@ -62,17 +62,17 @@ async function testFormatCitations() {
 
     const citations = formatCitations(docs)
 
-    console.log("✓ Generated citations:")
+    console.log("Generated citations:")
     citations.forEach((citation) => {
         console.log(`  [${citation.index}] ${citation.title} - ${citation.journal} (${citation.year})`)
         console.log(`      Citations: ${citation.citationCount}`)
     })
 
     if (citations.length === 2 && citations[0].index === 1 && citations[1].index === 2) {
-        console.log("✅ PASS: Citation formatting works correctly")
+        console.log("[PASS] Citation formatting works correctly")
         return true
     } else {
-        console.log("❌ FAIL: Citation formatting incorrect")
+        console.log("[FAIL] Citation formatting incorrect")
         return false
     }
 }
@@ -94,10 +94,10 @@ async function testBuildDocumentContext() {
     const hasJournal = context.includes("Journal of Clinical Medicine")
 
     if (hasTitle && hasAbstract && hasJournal) {
-        console.log("✅ PASS: Document context includes all key information")
+        console.log("[PASS] Document context includes all key information")
         return true
     } else {
-        console.log("❌ FAIL: Document context missing information")
+        console.log("[FAIL] Document context missing information")
         return false
     }
 }
@@ -124,45 +124,20 @@ async function testCalculateMetadata() {
     const expectedAvg = Math.round(expectedTotal / 3)
 
     if (metadata.documentsUsed === 3 && metadata.totalCitationCount === expectedTotal && metadata.averageCitationCount === expectedAvg) {
-        console.log("✅ PASS: Metadata calculation correct")
+        console.log("[PASS] Metadata calculation correct")
         return true
     } else {
-        console.log("❌ FAIL: Metadata calculation incorrect")
+        console.log("[FAIL] Metadata calculation incorrect")
         return false
     }
 }
 
 /**
- * Test 4: Generate Fallback Response
- */
-async function testFallbackResponse() {
-    console.log("\n=== Test 4: Generate Fallback Response ===")
-
-    const docs = [createMockDocument()]
-    const fallback = generateFallbackResponse(docs)
-
-    console.log("Fallback response length:", fallback.length)
-    console.log("Preview:", fallback.substring(0, 150) + "...")
-
-    const hasErrorMessage = fallback.includes("encountered an issue")
-    const hasTitle = fallback.includes("Understanding Type 2 Diabetes")
-    const hasContent = fallback.length > 100
-
-    if (hasErrorMessage && hasTitle && hasContent) {
-        console.log("✅ PASS: Fallback response generated correctly")
-        return true
-    } else {
-        console.log("❌ FAIL: Fallback response missing elements")
-        return false
-    }
-}
-
-/**
- * Test 5: Generate Medical Response (LIVE LLM TEST)
+ * Test 4: Generate Medical Response (LIVE LLM TEST)
  */
 async function testGenerateMedicalResponse() {
-    console.log("\n=== Test 5: Generate Medical Response (LIVE LLM) ===")
-    console.log("⚠️  This test calls OpenAI API (costs ~$0.005)")
+    console.log("\n=== Test 4: Generate Medical Response (LIVE LLM) ===")
+    console.log("  This test calls OpenAI API (costs ~$0.005)")
 
     const docs = [
         createMockDocument(),
@@ -199,23 +174,23 @@ async function testGenerateMedicalResponse() {
         const isReasonableLength = response.answer.length > 100
 
         if (hasCitations && hasSources && isReasonableLength) {
-            console.log("\n✅ PASS: Medical response generated successfully")
+            console.log("\n[PASS] Medical response generated successfully")
             return true
         } else {
-            console.log("\n❌ FAIL: Medical response missing expected elements")
+            console.log("\n[FAIL] Medical response missing expected elements")
             return false
         }
     } else {
-        console.log("\n❌ FAIL: Response generation failed:", result.error)
+        console.log("\n[FAIL] Response generation failed:", result.error)
         return false
     }
 }
 
 /**
- * Test 6: Error Handling (Empty Documents)
+ * Test 5: Error Handling (Empty Documents)
  */
 async function testErrorHandlingEmptyDocs() {
-    console.log("\n=== Test 6: Error Handling - Empty Documents ===")
+    console.log("\n=== Test 5: Error Handling - Empty Documents ===")
 
     const result = await generateMedicalResponse({
         userQuery: "What is diabetes?",
@@ -224,20 +199,20 @@ async function testErrorHandlingEmptyDocs() {
     })
 
     if (!result.success && result.error?.includes("No documents")) {
-        console.log("✅ PASS: Correctly handles empty document list")
+        console.log("[PASS] Correctly handles empty document list")
         return true
     } else {
-        console.log("❌ FAIL: Did not handle empty documents correctly")
+        console.log("[FAIL] Did not handle empty documents correctly")
         return false
     }
 }
 
 /**
- * Test 7: Response Format Validation
+ * Test 6: Response Format Validation
  */
 async function testResponseFormat() {
-    console.log("\n=== Test 7: Response Format Validation ===")
-    console.log("⚠️  This test calls OpenAI API")
+    console.log("\n=== Test 6: Response Format Validation ===")
+    console.log("  This test calls OpenAI API")
 
     const docs = [createMockDocument()]
 
@@ -255,17 +230,17 @@ async function testResponseFormat() {
         const hasEducationalPurpose = fullResponse.includes("educational purposes")
 
         if (hasSources && hasDisclaimer && hasEducationalPurpose) {
-            console.log("✅ PASS: Response format is correct")
+            console.log("[PASS] Response format is correct")
             return true
         } else {
-            console.log("❌ FAIL: Response format missing required sections")
+            console.log("[FAIL] Response format missing required sections")
             console.log("  Has SOURCES:", hasSources)
             console.log("  Has DISCLAIMER:", hasDisclaimer)
             console.log("  Has educational message:", hasEducationalPurpose)
             return false
         }
     } else {
-        console.log("❌ FAIL: Could not generate response for format validation")
+        console.log("[FAIL] Could not generate response for format validation")
         return false
     }
 }
@@ -282,7 +257,6 @@ async function runAllTests() {
         { name: "Format Citations", fn: testFormatCitations },
         { name: "Build Document Context", fn: testBuildDocumentContext },
         { name: "Calculate Metadata", fn: testCalculateMetadata },
-        { name: "Fallback Response", fn: testFallbackResponse },
         { name: "Generate Medical Response", fn: testGenerateMedicalResponse },
         { name: "Error Handling - Empty Docs", fn: testErrorHandlingEmptyDocs },
         { name: "Response Format Validation", fn: testResponseFormat }
@@ -295,7 +269,7 @@ async function runAllTests() {
             const passed = await test.fn()
             results.push(passed)
         } catch (error) {
-            console.log(`\n❌ FAIL: ${test.name} threw error:`, error)
+            console.log(`\n[FAIL] ${test.name} threw error:`, error)
             results.push(false)
         }
     }
@@ -309,7 +283,7 @@ async function runAllTests() {
     const total = results.length
 
     results.forEach((result, index) => {
-        const status = result ? "✅ PASS" : "❌ FAIL"
+        const status = result ? "[PASS]" : "[FAIL]"
         console.log(`${status}: ${tests[index].name}`)
     })
 
@@ -318,9 +292,9 @@ async function runAllTests() {
     console.log("=".repeat(60))
 
     if (passed === total) {
-        console.log("\n🎉 All tests passed!")
+        console.log("\nAll tests passed!")
     } else {
-        console.log(`\n⚠️  ${total - passed} test(s) failed`)
+        console.log(`\n${total - passed} test(s) failed`)
     }
 }
 

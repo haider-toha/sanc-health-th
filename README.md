@@ -27,15 +27,21 @@ flowchart TB
     Step2["Query Parser<br/><br/>Optimizes query for vector search"]
     Step2 --> Step3
     
-    Step3["Vector Search<br/><br/>Retrieves top papers from Pinecone"]
+    Step3["Vector Search<br/><br/>Retrieves 20 candidates from Pinecone"]
     Step3 -->|Results Found| Step4
     Step3 -->|No Results| End2[No Results Response]
     
-    Step4["PubMed Enricher<br/><br/>Adds metadata, abstracts, citations"]
+    Step4["PubMed Enricher - Phase 1<br/><br/>Fetch citation counts only (fast)"]
     Step4 --> Step5
     
-    Step5["Response Generator<br/><br/>LLM synthesizes answer with citations"]
-    Step5 --> End3
+    Step5["PubMed Enricher - Phase 2<br/><br/>Re-rank 20 by similarity + citations"]
+    Step5 --> Step6
+    
+    Step6["PubMed Enricher - Phase 3<br/><br/>Fetch full metadata for top 5 only"]
+    Step6 --> Step7
+    
+    Step7["Response Generator<br/><br/>LLM synthesizes answer with citations"]
+    Step7 --> End3
     
     End3([Natural Language Response])
     
@@ -43,7 +49,9 @@ flowchart TB
     style Step2 fill:#fff9c4,stroke:#f57f17,stroke-width:2px
     style Step3 fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
     style Step4 fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-    style Step5 fill:#ffe0b2,stroke:#e64a19,stroke-width:2px
+    style Step5 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    style Step6 fill:#a5d6a7,stroke:#1b5e20,stroke-width:2px
+    style Step7 fill:#ffe0b2,stroke:#e64a19,stroke-width:2px
     style Start fill:#f5f5f5,stroke:#666,stroke-width:2px
     style End3 fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px
     style End1 fill:#ffcdd2,stroke:#c62828,stroke-width:2px
@@ -85,27 +93,42 @@ Retrieves relevant medical literature from Pinecone:
 
 - Uses Google Vertex AI embeddings (768 dimensions)
 - Searches against 2,063,475 indexed PubMed articles
-- Returns top 5 most semantically similar papers
+- Returns top 20 candidates for citation-based re-ranking
 
 ### 4. PubMed Enricher (`src/nodes/pubmedEnricher.ts`)
 
-Enriches search results with PubMed metadata:
+Enriches search results using an optimized two-phase strategy:
 
-- **Fetches:** Abstracts, citation counts, journal info, article types
-- **Re-ranks:** Combines vector similarity (70%) + citation count (30%)
-- **APIs used:** ESummary, EFetch, ELink
-- **Fallback:** Gracefully handles missing PMIDs, abstracts, or API failures
+**Phase 1 - Lightweight Enrichment (Fast):**
+- Fetches ONLY citation counts for all 20 candidates
+- Single fast API call via ELink
+
+**Phase 2 - Re-ranking:**
+- Re-ranks all 20 candidates by combined score: vector similarity (70%) + citation count (30%)
+- Selects top 5 papers after re-ranking
+
+**Phase 3 - Full Enrichment (Comprehensive):**
+- Fetches abstracts, journal info, and metadata for top 5 only
+- Multiple API calls (ESummary, EFetch) but only for final papers
+
+**Benefits:**
+- 75% reduction in API calls (5 abstracts instead of 20)
+- Faster response time while maintaining ranking quality
+- Papers with strong citation support can rank higher even with slightly lower vector similarity
 
 **Re-ranking formula:**
 ```
 qualityScore = (vectorSimilarity × 0.7) + (normalizedCitations × 0.3)
 ```
 
+**APIs used:** ELink (citations), ESummary (metadata), EFetch (abstracts)
+**Fallback:** Gracefully handles missing PMIDs, abstracts, or API failures
+
 ### 5. Response Generator (`src/nodes/respond.ts`)
 
 Generates natural language responses using GPT-4o:
 
-- Synthesizes information from enriched papers
+- Synthesizes information from top 5 enriched papers
 - Includes numbered inline citations [1], [2], [3]
 - Provides sources section with citation counts
 - Adds medical disclaimer

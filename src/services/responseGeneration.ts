@@ -8,7 +8,6 @@
 
 import { HumanMessage, SystemMessage } from "@langchain/core/messages"
 import { getResponseGenerationClient } from "../clients/openai.js"
-import type { EnrichedDocument } from "../types/pubmed.js"
 import type { MedicalResponse, ResponseGenerationResult, ResponseContext } from "../types/response.js"
 import { formatCitations, formatMedicalResponse, buildDocumentContext, calculateResponseMetadata, cleanResponseText } from "../utils/formatters.js"
 
@@ -48,15 +47,13 @@ Generate a focused, well-cited response based on the documents provided.`
  * Generate a medical response from enriched documents using GPT-4o.
  */
 export async function generateMedicalResponse(context: ResponseContext, retryCount = 0): Promise<ResponseGenerationResult> {
-    const maxDocuments = context.maxDocuments || 5
+    const documentsToUse = context.documents.slice(0, context.maxDocuments)
+
+    if (documentsToUse.length === 0) {
+        return { success: false, error: "No documents available to generate response", retryCount }
+    }
 
     try {
-        const documentsToUse = context.documents.slice(0, maxDocuments)
-
-        if (documentsToUse.length === 0) {
-            return { success: false, error: "No documents available to generate response", retryCount }
-        }
-
         const documentContext = buildDocumentContext(documentsToUse)
         const userPrompt = buildUserPrompt(context.userQuery, documentContext)
         const llm = getResponseGenerationClient()
@@ -109,28 +106,4 @@ Based on the scientific literature provided above, generate a clear, well-cited 
  */
 export function formatCompleteResponse(response: MedicalResponse): string {
     return formatMedicalResponse(response.answer, response.sources)
-}
-
-/**
- * Generate a basic fallback response when LLM generation fails.
- */
-export function generateFallbackResponse(documents: EnrichedDocument[]): string {
-    if (documents.length === 0) {
-        return "I apologize, but I'm unable to generate a response at this time due to a technical issue. Please try again later."
-    }
-
-    const firstDoc = documents[0]
-    const title = firstDoc.pubmedData?.title || firstDoc.metadata.title || "Untitled"
-    const content = firstDoc.pubmedData?.abstract || firstDoc.content || ""
-    const excerpt = content.length > 500 ? content.substring(0, 500) + "..." : content
-
-    return [
-        "I encountered an issue generating a complete response. However, here is relevant information from our database:",
-        "",
-        `**${title}**`,
-        "",
-        excerpt,
-        "",
-        "Please try rephrasing your question or ask again later for a complete response."
-    ].join("\n")
 }
