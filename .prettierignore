@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+dist/
+dist-cjs/
+
+# Build files
+*.d.ts
+
+# Config files
+.env
+*.lock
+*.log
+
+# Binary/Data files
+*.zip
+*.DS_Store
+
+# Documentation that shouldn't be formatted
+LICENSE
+*.md
+
+# Ignore files
+.gitignore
+.dockerignore
+.claudeignore
+. cursorignore
+.prettierignore
+
+# JSON files (handled separately)
+package.json
+package-lock.json
+tsconfig.json
+langgraph.json
+
+# Other config files
+.gitattributes
+.prettierrc
+.importsortrc
+.eslintrc.cjs
+eslint.config.js

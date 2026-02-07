@@ -1,0 +1,8 @@
+".js, .jsx, .es6, .es, .mjs": {
+    "parser": "babylon",
+    "style": "module-scoped"
+}
+".ts, .tsx": {
+    "parser": "typescript",
+    "style": "module-scoped"
+}
