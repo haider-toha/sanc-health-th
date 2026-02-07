@@ -17,33 +17,37 @@ This system processes medical questions through a multi-stage pipeline:
 The system processes queries through the following pipeline:
 
 ```mermaid
-graph TD
-    A[User Query] --> B[Scope Classifier]
-    B -->|if medical| C[Query Parser]
-    B -->|if non-medical| Z[Reject Query]
-    C --> D[Vector Search]
-    D -->|if results found| E[PubMed Enricher]
-    D -->|no results| Y[No Results Response]
-    E --> F[Response Generator]
-    F --> G[Natural Language Response]
+flowchart TB
+    Start([User Query]) --> Step1
     
-    style B fill:#e1f5ff,stroke:#0288d1
-    style C fill:#fff9c4,stroke:#f57f17
-    style D fill:#f3e5f5,stroke:#7b1fa2
-    style E fill:#e8f5e9,stroke:#388e3c
-    style F fill:#ffe0b2,stroke:#e64a19
+    Step1["Scope Classifier<br/><br/>Hybrid: Keywords (fast) + LLM (accurate)"]
+    Step1 -->|Medical Query| Step2
+    Step1 -->|Non-Medical| End1[Reject Query]
     
-    note1[Hybrid: Keywords fast + LLM accurate]
-    note2[Optimizes query for vector search]
-    note3[Retrieves top papers from Pinecone]
-    note4[Adds metadata, abstracts, citations]
-    note5[LLM synthesizes answer with citations]
+    Step2["Query Parser<br/><br/>Optimizes query for vector search"]
+    Step2 --> Step3
     
-    B -.-> note1
-    C -.-> note2
-    D -.-> note3
-    E -.-> note4
-    F -.-> note5
+    Step3["Vector Search<br/><br/>Retrieves top papers from Pinecone"]
+    Step3 -->|Results Found| Step4
+    Step3 -->|No Results| End2[No Results Response]
+    
+    Step4["PubMed Enricher<br/><br/>Adds metadata, abstracts, citations"]
+    Step4 --> Step5
+    
+    Step5["Response Generator<br/><br/>LLM synthesizes answer with citations"]
+    Step5 --> End3
+    
+    End3([Natural Language Response])
+    
+    style Step1 fill:#e1f5ff,stroke:#0288d1,stroke-width:2px
+    style Step2 fill:#fff9c4,stroke:#f57f17,stroke-width:2px
+    style Step3 fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style Step4 fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    style Step5 fill:#ffe0b2,stroke:#e64a19,stroke-width:2px
+    style Start fill:#f5f5f5,stroke:#666,stroke-width:2px
+    style End3 fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px
+    style End1 fill:#ffcdd2,stroke:#c62828,stroke-width:2px
+    style End2 fill:#ffecb3,stroke:#f57c00,stroke-width:2px
 ```
 
 ## Key Components
@@ -178,11 +182,3 @@ npm run test:parser      # Query parser
 npm run test:pubmed      # PubMed enricher
 npm run test:response    # Response generation
 ```
-
-**Test Coverage:**
-- Integration validation: 4/4 tests
-- Scope classifier: 9/9 tests
-- Query parser: 11/11 tests
-- PubMed enricher: 7/7 tests
-- Response generation: 7/7 tests
-- **Total: 38/38 tests passing**
